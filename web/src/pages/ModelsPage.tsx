@@ -26,6 +26,7 @@ import { Spinner } from "@nous-research/ui/ui/components/spinner";
 import { Stats } from "@nous-research/ui/ui/components/stats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@nous-research/ui/ui/components/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { useI18n } from "@/i18n";
 import { PluginSlot } from "@/plugins";
@@ -494,11 +495,10 @@ function AuxiliaryTasksModal({
 }) {
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const resetAllAux = async () => {
-    if (!window.confirm("Reset every auxiliary task to 'auto'? This overrides any per-task overrides you've set.")) {
-      return;
-    }
+    setConfirmReset(false);
     setResetBusy(true);
     try {
       await api.setModelAssignment({
@@ -543,7 +543,7 @@ function AuxiliaryTasksModal({
             <Button
               size="sm"
               outlined
-              onClick={resetAllAux}
+              onClick={() => setConfirmReset(true)}
               disabled={resetBusy}
               className="text-[10px] h-6"
               prefix={resetBusy ? <Spinner /> : null}
@@ -616,6 +616,16 @@ function AuxiliaryTasksModal({
             onClose={() => setPicker(null)}
           />
         )}
+        <ConfirmDialog
+          open={confirmReset}
+          onCancel={() => setConfirmReset(false)}
+          onConfirm={() => void resetAllAux()}
+          title="Reset auxiliary models"
+          description="Reset every auxiliary task to 'auto'? This overrides any per-task overrides you've set."
+          destructive
+          confirmLabel="Reset all"
+          loading={resetBusy}
+        />
       </div>
     </div>
   );
