@@ -6,6 +6,7 @@ import type { ProfileInfo } from "@/lib/api";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { useToast } from "@/hooks/useToast";
 import { useConfirmDelete } from "@/hooks/useConfirmDelete";
+import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { Toast } from "@/components/Toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@nous-research/ui/ui/components/badge";
@@ -32,6 +33,11 @@ export default function ProfilesPage() {
   const [newName, setNewName] = useState("");
   const [cloneFromDefault, setCloneFromDefault] = useState(true);
   const [creating, setCreating] = useState(false);
+  const closeCreateModal = useCallback(() => setCreateModalOpen(false), []);
+  const createModalRef = useModalBehavior({
+    open: createModalOpen,
+    onClose: closeCreateModal,
+  });
 
   // Inline rename state
   const [renamingFrom, setRenamingFrom] = useState<string | null>(null);
@@ -222,6 +228,7 @@ export default function ProfilesPage() {
       {/* Create profile modal */}
       {createModalOpen && (
         <div
+          ref={createModalRef}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
           onClick={(e) => e.target === e.currentTarget && setCreateModalOpen(false)}
           role="dialog"

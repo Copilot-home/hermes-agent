@@ -10,6 +10,7 @@ import type { CronJob } from "@/lib/api";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { useToast } from "@/hooks/useToast";
 import { useConfirmDelete } from "@/hooks/useConfirmDelete";
+import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { Toast } from "@/components/Toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,11 @@ export default function CronPage() {
   const [prompt, setPrompt] = useState("");
   const [schedule, setSchedule] = useState("");
   const [name, setName] = useState("");
+  const closeCreateModal = useCallback(() => setCreateModalOpen(false), []);
+  const createModalRef = useModalBehavior({
+    open: createModalOpen,
+    onClose: closeCreateModal,
+  });
   const [deliver, setDeliver] = useState("local");
   const [creating, setCreating] = useState(false);
 
@@ -236,6 +242,7 @@ export default function CronPage() {
       {/* Create job modal */}
       {createModalOpen && (
         <div
+          ref={createModalRef}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
           onClick={(e) => e.target === e.currentTarget && setCreateModalOpen(false)}
           role="dialog"

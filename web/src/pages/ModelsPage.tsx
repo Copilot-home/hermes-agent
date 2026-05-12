@@ -27,6 +27,7 @@ import { Stats } from "@nous-research/ui/ui/components/stats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@nous-research/ui/ui/components/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { useI18n } from "@/i18n";
 import { PluginSlot } from "@/plugins";
@@ -99,56 +100,33 @@ function TokenBar({
     { value: output, color: "bg-emerald-500/70", dotColor: "bg-emerald-500", label: "Output" },
   ].filter((s) => s.value > 0);
 
-  const filledPercent = 100; // all segments together fill 100% of their container
-
   return (
     <div className="space-y-1.5">
-      {/* Bar in the style of the design system Progress component */}
+      {/* Stacked bar — segments fill proportionally to their share of total */}
       <div className="relative flex min-h-[1.5rem] w-full items-stretch overflow-hidden">
-        {/* Filled portion with segments */}
-        <div
-          className="flex shrink-0 items-stretch"
-          style={{
-            width: `${filledPercent}%`,
-            transition: "width 0.4s steps(10, end)",
-          }}
-        >
-          {segments.map((s, i) => (
+        {segments.map((s, i) => (
+          <div
+            key={i}
+            className={`${s.color} relative flex items-center transition-all duration-300`}
+            style={{ width: `${(s.value / total) * 100}%` }}
+          >
+            {/* Stepped fill pattern overlay */}
             <div
-              key={i}
-              className={`${s.color} relative flex items-center transition-all duration-300`}
-              style={{ width: `${(s.value / total) * 100}%` }}
-            >
-              {/* Stepped fill pattern overlay */}
-              <div
-                className="absolute inset-0 opacity-30"
-                style={{
-                  backgroundImage:
-                    "repeating-linear-gradient(to right, transparent 0 0.4rem, currentColor 0.4rem calc(0.4rem + 1px))",
-                }}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Unfilled area with the signature vertical-line pattern */}
-        <div
-          className="flex-1"
-          style={
-            {
-              "--x": ".5rem",
-              backgroundImage:
-                "repeating-linear-gradient(to right, transparent 0 var(--x), color-mix(in srgb, var(--color-midground) 17%, transparent) var(--x) calc(var(--x) + 1px))",
-            } as React.CSSProperties
-          }
-        />
+              className="absolute inset-0 opacity-30"
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(to right, transparent 0 0.4rem, currentColor 0.4rem calc(0.4rem + 1px))",
+              }}
+            />
+          </div>
+        ))}
       </div>
 
       {/* Legend */}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
         {segments.map((s, i) => (
           <span key={i} className="flex items-center gap-1">
-            <span className={`inline-block h-1.5 w-1.5 ${s.dotColor}`} />
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${s.dotColor}`} />
             {s.label} {formatTokens(s.value)}
           </span>
         ))}
@@ -496,6 +474,7 @@ function AuxiliaryTasksModal({
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const modalRef = useModalBehavior({ open: true, onClose });
 
   const resetAllAux = async () => {
     setConfirmReset(false);
@@ -515,6 +494,7 @@ function AuxiliaryTasksModal({
 
   return (
     <div
+      ref={modalRef}
       className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
