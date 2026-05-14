@@ -1113,9 +1113,9 @@ def load_gateway_config() -> GatewayConfig:
                             pass
                     if "key" in _bridged_api and not os.getenv("API_SERVER_KEY"):
                         _api_extra.setdefault("key", str(_bridged_api["key"]))
-                    if "allow_model_override" in _bridged_api:
+                    if "allow_model_override" in _bridged_api and not os.getenv("API_SERVER_ALLOW_MODEL_OVERRIDE"):
                         _api_extra.setdefault("allow_model_override", bool(_bridged_api["allow_model_override"]))
-                    if "max_concurrent" in _bridged_api:
+                    if "max_concurrent" in _bridged_api and not os.getenv("API_SERVER_MAX_CONCURRENT"):
                         try:
                             _api_extra.setdefault("max_concurrent", int(_bridged_api["max_concurrent"]))
                         except (TypeError, ValueError):
