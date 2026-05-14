@@ -1078,6 +1078,53 @@ def load_gateway_config() -> GatewayConfig:
                 if "allow_bots" in feishu_cfg and not os.getenv("FEISHU_ALLOW_BOTS"):
                     os.environ["FEISHU_ALLOW_BOTS"] = str(feishu_cfg["allow_bots"]).lower()
 
+            # API Server settings → platforms_data["api_server"]["extra"]
+            # Bridge top-level api_server: YAML keys so users can write
+            #   api_server:
+            #     enabled: true
+            #     host: "0.0.0.0"
+            #     port: 8642
+            #     key: "secret"
+            # instead of the verbose platforms.api_server.extra.* form.
+            api_server_yaml = yaml_cfg.get("api_server", {})
+            if isinstance(api_server_yaml, dict):
+                _api_extra_keys = {
+                    "host", "port", "key", "allow_model_override",
+                    "max_concurrent", "cors_origins", "model_name",
+                }
+                _bridged_api = {k: v for k, v in api_server_yaml.items() if k in _api_extra_keys}
+                if _bridged_api:
+                    _api_plat = platforms_data.setdefault(Platform.API_SERVER.value, {})
+                    if not isinstance(_api_plat, dict):
+                        _api_plat = {}
+                        platforms_data[Platform.API_SERVER.value] = _api_plat
+                    _api_extra = _api_plat.setdefault("extra", {})
+                    if not isinstance(_api_extra, dict):
+                        _api_extra = {}
+                        _api_plat["extra"] = _api_extra
+                    # Only set keys that aren't already provided via env vars
+                    # (env vars take precedence, as with other platforms)
+                    if "host" in _bridged_api and not os.getenv("API_SERVER_HOST"):
+                        _api_extra.setdefault("host", str(_bridged_api["host"]))
+                    if "port" in _bridged_api and not os.getenv("API_SERVER_PORT"):
+                        try:
+                            _api_extra.setdefault("port", int(_bridged_api["port"]))
+                        except (TypeError, ValueError):
+                            pass
+                    if "key" in _bridged_api and not os.getenv("API_SERVER_KEY"):
+                        _api_extra.setdefault("key", str(_bridged_api["key"]))
+                    if "allow_model_override" in _bridged_api:
+                        _api_extra.setdefault("allow_model_override", bool(_bridged_api["allow_model_override"]))
+                    if "max_concurrent" in _bridged_api:
+                        try:
+                            _api_extra.setdefault("max_concurrent", int(_bridged_api["max_concurrent"]))
+                        except (TypeError, ValueError):
+                            pass
+                    if "cors_origins" in _bridged_api and not os.getenv("API_SERVER_CORS_ORIGINS"):
+                        _api_extra.setdefault("cors_origins", _bridged_api["cors_origins"])
+                    if "model_name" in _bridged_api and not os.getenv("API_SERVER_MODEL_NAME"):
+                        _api_extra.setdefault("model_name", str(_bridged_api["model_name"]))
+
     except Exception as e:
         logger.warning(
             "Failed to process config.yaml — falling back to .env / gateway.json values. "

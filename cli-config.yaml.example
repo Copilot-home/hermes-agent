@@ -501,6 +501,35 @@ session_reset:
 group_sessions_per_user: true
 
 # ─────────────────────────────────────────────────────────────────────────────
+# OpenAI-Compatible API Server
+# ─────────────────────────────────────────────────────────────────────────────
+# Expose hermes-agent as an OpenAI-compatible backend so any OpenAI client
+# (Open WebUI, LobeChat, LibreChat, AnythingLLM, NextChat, ChatBox, etc.)
+# can connect to it at http://localhost:8642/v1.
+#
+# Set API_SERVER_ENABLED=true in ~/.hermes/.env (or enable below) and run
+# `hermes gateway`. Then point your frontend at http://<host>:8642/v1.
+#
+# Endpoints:
+#   POST /v1/chat/completions  — Chat Completions (stateless; opt-in sessions)
+#   POST /v1/responses         — Responses API (stateful via previous_response_id)
+#   GET  /v1/models            — List available models
+#   GET  /health               — Health check
+api_server:
+  # enabled: false               # Set true to start the API server with the gateway
+  # host: "127.0.0.1"            # Bind address. Use 0.0.0.0 to expose on all interfaces
+  #                              # (requires setting a key for security)
+  # port: 8642                   # Listening port
+  # key: ""                      # Bearer token for Authorization: Bearer <key>.
+  #                              # Leave empty to allow unauthenticated local access.
+  #                              # Also settable via API_SERVER_KEY env var.
+  # allow_model_override: false  # Let clients specify the model in the request body
+  # max_concurrent: 10           # Max simultaneous agent runs (0 = unlimited)
+  # cors_origins: []             # CORS allowed origins, e.g. ["http://localhost:3000"]
+  #                              # Also settable via API_SERVER_CORS_ORIGINS (comma-separated)
+  # model_name: "hermes-agent"   # Model name advertised in /v1/models and responses
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Gateway Streaming
 # ─────────────────────────────────────────────────────────────────────────────
 # Stream tokens to messaging platforms in real-time. The bot sends a message
