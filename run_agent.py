@@ -47,10 +47,15 @@ import ssl
 import sys
 import tempfile
 import time
+<<<<<<< HEAD
 import threading
 from types import SimpleNamespace
 import urllib.request
 import uuid
+=======
+import uuid
+import asyncio
+>>>>>>> origin/UI
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse, parse_qs, urlunparse
 # NOTE: `from openai import OpenAI` is deliberately NOT at module top — the
@@ -119,6 +124,7 @@ else:
 
 
 # Import our tool system
+<<<<<<< HEAD
 from model_tools import (
     get_tool_definitions,
     get_toolset_for_tool,
@@ -1089,6 +1095,22 @@ def _qwen_portal_headers() -> dict:
         "X-DashScope-UserAgent": _ua,
         "X-DashScope-AuthType": "qwen-oauth",
     }
+=======
+from model_tools import get_tool_definitions, handle_function_call, check_toolset_requirements
+from mock_web_tools import MOCK_TOOL_FUNCTIONS, MOCK_WEB_TOOLS
+
+# Import WebSocket connection pool (optional dependency)
+# Use synchronous API to avoid event loop management in agent layer
+try:
+    from api_endpoint.websocket_connection_pool import connect_sync, send_event_sync, is_connected
+    WEBSOCKET_LOGGER_AVAILABLE = True
+except ImportError:
+    WEBSOCKET_LOGGER_AVAILABLE = False
+    connect_sync = None
+    send_event_sync = None
+    is_connected = None
+    print("⚠️  WebSocket logger not available (missing websockets package)")
+>>>>>>> origin/UI
 
 
 class AIAgent:
@@ -1131,6 +1153,7 @@ class AIAgent:
         disabled_toolsets: List[str] = None,
         save_trajectories: bool = False,
         verbose_logging: bool = False,
+<<<<<<< HEAD
         quiet_mode: bool = False,
         ephemeral_system_prompt: str = None,
         log_prefix_chars: int = 100,
@@ -1180,6 +1203,12 @@ class AIAgent:
         checkpoint_max_total_size_mb: int = 500,
         checkpoint_max_file_size_mb: int = 10,
         pass_session_id: bool = False,
+=======
+        enable_websocket_logging: bool = False,
+        websocket_server: str = "ws://localhost:8000/ws",
+        mock_web_tools: bool = False,
+        mock_delay: int = 60
+>>>>>>> origin/UI
     ):
         """
         Initialize the AI Agent.
@@ -1196,6 +1225,7 @@ class AIAgent:
             disabled_toolsets (List[str]): Disable tools from these toolsets (optional)
             save_trajectories (bool): Whether to save conversation trajectories to JSONL files (default: False)
             verbose_logging (bool): Enable verbose logging for debugging (default: False)
+<<<<<<< HEAD
             quiet_mode (bool): Suppress progress output for clean CLI experience (default: False)
             ephemeral_system_prompt (str): System prompt used during agent execution but NOT saved to trajectories (optional)
             log_prefix_chars (int): Number of characters to show in log previews for tool calls/responses (default: 100)
@@ -1228,6 +1258,12 @@ class AIAgent:
             load_soul_identity (bool): If True, still use ~/.hermes/SOUL.md as the primary
                 identity even when skip_context_files=True. Project context files from the cwd
                 remain skipped.
+=======
+            enable_websocket_logging (bool): Enable real-time WebSocket logging (default: False)
+            websocket_server (str): WebSocket server URL (default: ws://localhost:8000/ws)
+            mock_web_tools (bool): Use mock web tools for testing (no API calls, configurable delays) (default: False)
+            mock_delay (int): Delay in seconds for mock web_extract to test timeout (default: 60)
+>>>>>>> origin/UI
         """
         _install_safe_stdio()
 
@@ -1239,6 +1275,7 @@ class AIAgent:
         self.tool_delay = tool_delay
         self.save_trajectories = save_trajectories
         self.verbose_logging = verbose_logging
+<<<<<<< HEAD
         self.quiet_mode = quiet_mode
         self.ephemeral_system_prompt = ephemeral_system_prompt
         self.platform = platform  # "cli", "telegram", "discord", "whatsapp", etc.
@@ -1380,6 +1417,13 @@ class AIAgent:
         self.status_callback = status_callback
         self.tool_gen_callback = tool_gen_callback
 
+=======
+        self.enable_websocket_logging = enable_websocket_logging and WEBSOCKET_LOGGER_AVAILABLE
+        self.websocket_server = websocket_server
+        self.mock_web_tools = mock_web_tools
+        self.mock_delay = mock_delay
+        # Note: We use global ws_pool instead of per-instance connection
+>>>>>>> origin/UI
         
         # Tool execution state — allows _vprint during tool execution
         # even when stream consumers are registered (no tokens streaming then)
@@ -1878,6 +1922,7 @@ class AIAgent:
         if self.save_trajectories and not self.quiet_mode:
             print("📝 Trajectory saving enabled")
         
+<<<<<<< HEAD
         # Show ephemeral system prompt status
         if self.ephemeral_system_prompt and not self.quiet_mode:
             prompt_preview = self.ephemeral_system_prompt[:60] + "..." if len(self.ephemeral_system_prompt) > 60 else self.ephemeral_system_prompt
@@ -4739,6 +4784,13 @@ class AIAgent:
         # Return everything up to (not including) the last assistant message
         return messages[:last_assistant_idx]
 
+=======
+        # Show mock tools status
+        if self.mock_web_tools:
+            print(f"🧪 MOCK MODE ENABLED - Web tools will use fake data (delay: {self.mock_delay}s)")
+            print(f"   Perfect for testing WebSocket reconnection without API costs!")
+    
+>>>>>>> origin/UI
     def _format_tools_for_system_message(self) -> str:
         """
         Format tool definitions for the system message in the trajectory format.
@@ -5256,6 +5308,7 @@ class AIAgent:
             )
 
         except Exception as e:
+<<<<<<< HEAD
             if self.verbose_logging:
                 logging.warning(f"Failed to save session log: {e}")
 
@@ -11804,6 +11857,42 @@ class AIAgent:
         task_id: str = None,
         stream_callback: Optional[callable] = None,
         persist_user_message: Optional[str] = None,
+=======
+            print(f"⚠️ Failed to save trajectory: {e}")
+    
+    def _init_websocket_connection(self, session_id: str):
+        """
+        Initialize WebSocket connection pool if enabled.
+        
+        Connects to logging server using persistent connection pool.
+        Connection is shared across all agent runs - no per-run overhead!
+        
+        Uses synchronous API - no event loop management needed in agent layer.
+        """
+        if self.enable_websocket_logging and WEBSOCKET_LOGGER_AVAILABLE and connect_sync:
+            try:
+                # Connect to server (idempotent - safe if already connected)
+                # API layer handles all event loop management internally
+                connect_sync(self.websocket_server)
+                
+                # Send session_start event for this specific session
+                send_event_sync("session_start", session_id, {
+                    "session_id": session_id,
+                    "start_time": datetime.now().isoformat()
+                })
+                
+                print(f"📡 WebSocket logging enabled (session: {session_id[:8]}...)")
+            except Exception as e:
+                print(f"⚠️  Failed to initialize WebSocket connection: {e}")
+                self.enable_websocket_logging = False
+    
+    def run_conversation(
+        self, 
+        user_message: str, 
+        system_message: str = None, 
+        conversation_history: List[Dict[str, Any]] = None,
+        session_id: str = None
+>>>>>>> origin/UI
     ) -> Dict[str, Any]:
         """
         Run a complete conversation with tool calling until completion.
@@ -11812,6 +11901,7 @@ class AIAgent:
             user_message (str): The user's message/question
             system_message (str): Custom system message (optional, overrides ephemeral_system_prompt if provided)
             conversation_history (List[Dict]): Previous conversation messages (optional)
+<<<<<<< HEAD
             task_id (str): Unique identifier for this task to isolate VMs between concurrent tasks (optional, auto-generated if not provided)
             stream_callback: Optional callback invoked with each text delta during streaming.
                 Used by the TTS pipeline to start audio generation before the full response.
@@ -11882,6 +11972,35 @@ class AIAgent:
         # state registry.  Set BEFORE any tool dispatch so snapshots taken at
         # child-launch time see the parent's real id, not None.
         self._current_task_id = effective_task_id
+=======
+            session_id (str): Optional session ID (generated if not provided)
+            
+        Returns:
+            Dict: Complete conversation result with final response and message history
+        """
+        if session_id is None:
+            session_id = str(uuid.uuid4())
+        
+        # Uses synchronous API - no event loop management in agent layer
+        if self.enable_websocket_logging:
+            try:
+                # Connect to logging server and log initial query
+                # All event loop management is handled inside the API layer
+                self._init_websocket_connection(session_id)
+                send_event_sync("query", session_id, {
+                    "query": user_message,
+                    "model": self.model,
+                    "toolsets": self.enabled_toolsets
+                })
+            except Exception as e:
+                print(f"⚠️  WebSocket logging initialization failed: {e}")
+                import traceback
+                if self.verbose_logging:
+                    traceback.print_exc()
+        
+        # Initialize conversation
+        messages = conversation_history or []
+>>>>>>> origin/UI
         
         # Reset retry counters and iteration budget at the start of each turn
         # so subagent usage from a previous turn doesn't eat into the next one.
@@ -12571,6 +12690,22 @@ class AIAgent:
                     thinking_spinner = KawaiiSpinner(f"{face} {verb}...", spinner_type=spinner_type, print_fn=self._print_fn)
                     thinking_spinner.start()
             
+            # ============================================================
+            # WEBSOCKET LOGGING: API Call Start
+            # ============================================================
+            # Log that we're about to make an API call to the model
+            # Captures: which call number, how many messages, whether tools available
+            if self.enable_websocket_logging and WEBSOCKET_LOGGER_AVAILABLE and send_event_sync:
+                try:
+                    send_event_sync("api_call", session_id, {
+                        "call_number": api_call_count,
+                        "message_count": len(messages),
+                        "has_tools": bool(self.tools)
+                    })
+                except Exception as e:
+                    if self.verbose_logging:
+                        print(f"⚠️  WebSocket logging error: {e}")
+            
             # Log request details if verbose
             if self.verbose_logging:
                 logging.debug(f"API Request - Model: {self.model}, Messages: {len(messages)}, Tools: {len(self.tools) if self.tools else 0}")
@@ -12647,6 +12782,7 @@ class AIAgent:
                         pass  # Never let rate guard break the agent loop
 
                 try:
+<<<<<<< HEAD
                     self._reset_stream_delivery_tracking()
                     api_kwargs = self._build_api_kwargs(api_messages)
                     if self._force_ascii_payload:
@@ -12727,6 +12863,17 @@ class AIAgent:
                         )
                     else:
                         response = self._interruptible_api_call(api_kwargs)
+=======
+                    # Make API call with tools
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        tools=self.tools if self.tools else None,
+                        timeout=60.0  # Add explicit timeout
+                    )
+
+                    print(f"🔧 Response: {response}")
+>>>>>>> origin/UI
                     
                     api_duration = time.time() - api_start_time
                     
@@ -12740,6 +12887,25 @@ class AIAgent:
                     
                     if not self.quiet_mode:
                         self._vprint(f"{self.log_prefix}⏱️  API call completed in {api_duration:.2f}s")
+                    
+                    # ============================================================
+                    # WEBSOCKET LOGGING: API Response
+                    # ============================================================
+                    # Log the response we got back from the AI model
+                    # Captures: what the model said, whether it wants tools, how long it took
+                    if self.enable_websocket_logging and WEBSOCKET_LOGGER_AVAILABLE and send_event_sync:
+                        try:
+                            assistant_msg = response.choices[0].message
+                            send_event_sync("response", session_id, {
+                                "call_number": api_call_count,
+                                "content": assistant_msg.content if hasattr(assistant_msg, 'content') else None,
+                                "has_tool_calls": hasattr(assistant_msg, 'tool_calls') and bool(assistant_msg.tool_calls),
+                                "tool_call_count": len(assistant_msg.tool_calls) if hasattr(assistant_msg, 'tool_calls') and assistant_msg.tool_calls else 0,
+                                "duration": api_duration
+                            })
+                        except Exception as e:
+                            if self.verbose_logging:
+                                print(f"⚠️  WebSocket logging error: {e}")
                     
                     if self.verbose_logging:
                         # Log response with provider info if available
@@ -14573,6 +14739,7 @@ class AIAgent:
                     pass
 
                 # Handle assistant response
+<<<<<<< HEAD
                 if assistant_message.content and not self.quiet_mode:
                     if self.verbose_logging:
                         self._vprint(f"{self.log_prefix}🤖 Assistant: {assistant_message.content}")
@@ -14697,6 +14864,16 @@ class AIAgent:
                 if assistant_message.tool_calls:
                     if not self.quiet_mode:
                         self._vprint(f"{self.log_prefix}🔧 Processing {len(assistant_message.tool_calls)} tool call(s)...")
+=======
+                if assistant_message.content:
+                    print(f"🤖 Assistant: {assistant_message.content}")
+                
+                # Check for tool calls
+                if assistant_message.tool_calls:
+
+                    print(f"🔧 Tool calls: {assistant_message.tool_calls}")
+                    print(f"🔧 Processing {len(assistant_message.tool_calls)} tool call(s)...")
+>>>>>>> origin/UI
                     
                     if self.verbose_logging:
                         for tc in assistant_message.tool_calls:
@@ -14772,6 +14949,7 @@ class AIAgent:
                         try:
                             json.loads(args)
                         except json.JSONDecodeError as e:
+<<<<<<< HEAD
                             invalid_json_args.append((tc.function.name, str(e)))
                     
                     if invalid_json_args:
@@ -15003,6 +15181,94 @@ class AIAgent:
                     # Save session log incrementally (so progress is visible even if interrupted)
                     self._session_messages = messages
                     self._save_session_log(messages)
+=======
+                            print(f"❌ Invalid JSON in tool call arguments: {e}")
+                            function_args = {}
+                        
+                        print(f"  📞 Tool {i}: {function_name}({list(function_args.keys())})")
+                        
+                        # ============================================================
+                        # WEBSOCKET LOGGING: Tool Call (Before Execution)
+                        # ============================================================
+                        # Log which tool we're about to execute and with what parameters
+                        # This happens BEFORE tool runs, so we know what was requested
+                        if self.enable_websocket_logging and WEBSOCKET_LOGGER_AVAILABLE and send_event_sync:
+                            try:
+                                send_event_sync("tool_call", session_id, {
+                                    "call_number": api_call_count,
+                                    "tool_index": i,
+                                    "tool_name": function_name,
+                                    "parameters": function_args,  # E.g., {"query": "Python", "limit": 5}
+                                    "tool_call_id": tool_call.id
+                                })
+                            except Exception as e:
+                                if self.verbose_logging:
+                                    print(f"⚠️  WebSocket logging error: {e}")
+                        
+                        tool_start_time = time.time()
+                        
+                        # Execute the tool (mock or real based on configuration)
+                        if self.mock_web_tools and function_name in MOCK_TOOL_FUNCTIONS:
+                            # Use mock implementation (no API calls, configurable delay)
+                            mock_function = MOCK_TOOL_FUNCTIONS[function_name]
+                            # Inject mock_delay for web_extract if not provided
+                            if function_name == "web_extract" and "delay" not in function_args:
+                                function_args["delay"] = self.mock_delay
+                            function_result = mock_function(**function_args)
+                        else:
+                            # Use real tool implementation
+                            function_result = handle_function_call(function_name, function_args)
+                        
+                        tool_duration = time.time() - tool_start_time
+                        result_preview = function_result[:200] if len(function_result) > 200 else function_result
+                        
+                        if self.verbose_logging:
+                            logging.debug(f"Tool {function_name} completed in {tool_duration:.2f}s")
+                            logging.debug(f"Tool result preview: {result_preview}...")
+                        
+                        # Add tool result to conversation
+                        messages.append({
+                            "role": "tool",
+                            "content": function_result,
+                            "tool_call_id": tool_call.id
+                        })
+                        
+                        print(f"  ✅ Tool {i} completed in {tool_duration:.2f}s")
+                        
+                        # ============================================================
+                        # WEBSOCKET LOGGING: Tool Result (After Execution)
+                        # ============================================================
+                        # Log the result we got back from the tool
+                        # IMPORTANT: Logs BOTH truncated preview AND full raw result
+                        # 
+                        # Why both?
+                        # - result: Truncated to 1000 chars for quick preview in UI
+                        # - raw_result: FULL untruncated output for verification
+                        #
+                        # This is crucial for web tools where you want to see:
+                        # - What the scraper actually returned (raw_result)
+                        # - What the LLM processed it into (compare against raw)
+                        # - Verify the LLM isn't losing important information
+                        if self.enable_websocket_logging and WEBSOCKET_LOGGER_AVAILABLE and send_event_sync:
+                            try:
+                                send_event_sync("tool_result", session_id, {
+                                    "call_number": api_call_count,
+                                    "tool_index": i,
+                                    "tool_name": function_name,
+                                    "result": function_result[:1000] if function_result else None,  # Truncated preview
+                                    "raw_result": function_result,  # Full untruncated result (can be 100KB+)
+                                    "error": None,
+                                    "duration": tool_duration,
+                                    "tool_call_id": tool_call.id
+                                })
+                            except Exception as e:
+                                if self.verbose_logging:
+                                    print(f"⚠️  WebSocket logging error: {e}")
+                        
+                        # Delay between tool calls
+                        if self.tool_delay > 0 and i < len(assistant_message.tool_calls):
+                            time.sleep(self.tool_delay)
+>>>>>>> origin/UI
                     
                     # Continue loop for next response
                     continue
@@ -15346,7 +15612,27 @@ class AIAgent:
                 except (OSError, ValueError):
                     logger.error(error_msg)
                 
+<<<<<<< HEAD
                 logger.debug("Outer loop error in API call #%d", api_call_count, exc_info=True)
+=======
+                # ============================================================
+                # WEBSOCKET LOGGING: Error Event
+                # ============================================================
+                # Log any errors that occur during API calls or tool execution
+                # Helps track failures and debug issues
+                if self.enable_websocket_logging and WEBSOCKET_LOGGER_AVAILABLE and send_event_sync:
+                    try:
+                        send_event_sync("error", session_id, {
+                            "error_message": error_msg,
+                            "call_number": api_call_count
+                        })
+                    except Exception as ws_error:
+                        if self.verbose_logging:
+                            print(f"⚠️  WebSocket logging error: {ws_error}")
+                
+                if self.verbose_logging:
+                    logging.exception("Detailed error information:")
+>>>>>>> origin/UI
                 
                 # If an assistant message with tool_calls was already appended,
                 # the API expects a role="tool" result for every tool_call_id.
@@ -15445,6 +15731,7 @@ class AIAgent:
 
         # Determine if conversation completed successfully
         completed = final_response is not None and api_call_count < self.max_iterations
+<<<<<<< HEAD
 
         # Save trajectory if enabled.  ``user_message`` may be a multimodal
         # list of parts; the trajectory format wants a plain string.
@@ -15588,11 +15875,41 @@ class AIAgent:
 
         # Build result with interrupt info if applicable
         result = {
+=======
+        
+        # Save trajectory if enabled
+        self._save_trajectory(messages, user_message, completed)
+        
+        # ============================================================
+        # WEBSOCKET LOGGING: Session Complete
+        # ============================================================
+        # Log final completion event for this session
+        # Note: WebSocket connection stays open for future runs (persistent pool)
+        # Uses synchronous API - no event loop management in agent layer
+        if self.enable_websocket_logging and WEBSOCKET_LOGGER_AVAILABLE and send_event_sync:
+            try:
+                # Log completion with summary information
+                # API layer handles event loop management internally
+                send_event_sync("complete", session_id, {
+                    "final_response": final_response,      # What the agent finally answered
+                    "total_calls": api_call_count,          # How many API calls were made
+                    "completed": completed                   # Did it finish successfully?
+                })
+                # Connection persists automatically - agent has no control over lifecycle
+            except Exception as e:
+                if self.verbose_logging:
+                    print(f"⚠️  WebSocket logging error: {e}")
+                    import traceback
+                    traceback.print_exc()
+        
+        return {
+>>>>>>> origin/UI
             "final_response": final_response,
             "last_reasoning": last_reasoning,
             "messages": messages,
             "api_calls": api_call_count,
             "completed": completed,
+<<<<<<< HEAD
             "turn_exit_reason": _turn_exit_reason,
             "partial": False,  # True only when stopped due to invalid tool calls
             "interrupted": interrupted,
@@ -15686,6 +16003,12 @@ class AIAgent:
         return result
 
     def chat(self, message: str, stream_callback: Optional[callable] = None) -> str:
+=======
+            "session_id": session_id if self.enable_websocket_logging else None
+        }
+    
+    def chat(self, message: str) -> str: # After we connect the UI we can put whatever we want here
+>>>>>>> origin/UI
         """
         Simple chat interface that returns just the final response.
 
@@ -15702,7 +16025,11 @@ class AIAgent:
 
 def main(
     query: str = None,
+<<<<<<< HEAD
     model: str = "",
+=======
+    model: str = "claude-sonnet-4-5-20250929", 
+>>>>>>> origin/UI
     api_key: str = None,
     base_url: str = "",
     max_turns: int = 10,
@@ -15710,9 +16037,17 @@ def main(
     disabled_toolsets: str = None,
     list_tools: bool = False,
     save_trajectories: bool = False,
+<<<<<<< HEAD
     save_sample: bool = False,
     verbose: bool = False,
     log_prefix_chars: int = 20
+=======
+    verbose: bool = False,
+    enable_websocket_logging: bool = False,
+    websocket_server: str = "ws://localhost:8000/ws",
+    mock_web_tools: bool = False,
+    mock_delay: int = 60
+>>>>>>> origin/UI
 ):
     """
     Main function for running the agent directly.
@@ -15731,10 +16066,29 @@ def main(
         save_trajectories (bool): Save conversation trajectories to JSONL files (appends to trajectory_samples.jsonl). Defaults to False.
         save_sample (bool): Save a single trajectory sample to a UUID-named JSONL file for inspection. Defaults to False.
         verbose (bool): Enable verbose logging for debugging. Defaults to False.
+<<<<<<< HEAD
         log_prefix_chars (int): Number of characters to show in log previews for tool calls/responses. Defaults to 20.
 
+=======
+        enable_websocket_logging (bool): Enable real-time WebSocket logging. Defaults to False.
+        websocket_server (str): WebSocket server URL. Defaults to ws://localhost:8000/ws.
+        mock_web_tools (bool): Use mock web tools for testing (no API calls, configurable delays). Defaults to False.
+        mock_delay (int): Delay in seconds for mock web_extract (default: 60s to test timeout). Defaults to 60.
+        
+>>>>>>> origin/UI
     Toolset Examples:
         - "research": Web search, extract, crawl + vision tools
+    
+    Mock Tools (Testing):
+        Use --mock_web_tools to test WebSocket reconnection without API calls:
+        - web_search: Returns fake results after 2s
+        - web_extract: Returns fake content after 60s (tests timeout)
+        - web_crawl: Returns fake pages after 30s
+    
+    WebSocket Logging:
+        1. Start logging server: python logging_server.py
+        2. Run agent with --enable_websocket_logging flag
+        3. View logs in realtime at http://localhost:8000
     """
     print("🤖 AI Agent with Tool Calling")
     print("=" * 50)
@@ -15839,6 +16193,11 @@ def main(
         print("   - Successful conversations → trajectory_samples.jsonl")
         print("   - Failed conversations → failed_trajectories.jsonl")
     
+    if enable_websocket_logging:
+        print(f"📡 WebSocket logging: ENABLED")
+        print(f"   - Server: {websocket_server}")
+        print(f"   - Make sure logging server is running: python logging_server.py")
+    
     # Initialize agent with provided parameters
     try:
         agent = AIAgent(
@@ -15850,7 +16209,14 @@ def main(
             disabled_toolsets=disabled_toolsets_list,
             save_trajectories=save_trajectories,
             verbose_logging=verbose,
+<<<<<<< HEAD
             log_prefix_chars=log_prefix_chars
+=======
+            enable_websocket_logging=enable_websocket_logging,
+            websocket_server=websocket_server,
+            mock_web_tools=mock_web_tools,
+            mock_delay=mock_delay
+>>>>>>> origin/UI
         )
     except RuntimeError as e:
         print(f"❌ Failed to initialize agent: {e}")
@@ -15864,6 +16230,9 @@ def main(
         )
     else:
         user_query = query
+
+    # There needs to be a multi-turn conversation here
+    # Hermes Agent needs to be multi-turn to be useful
     
     print(f"\n📝 User Query: {user_query}")
     print("\n" + "=" * 50)
@@ -15917,3 +16286,12 @@ def main(
 if __name__ == "__main__":
     import fire
     fire.Fire(main)
+
+
+# Order of operations:
+# First track the ways in which information flows through the agent in realtime
+# Create a FastAPI endpoint that is first able to listen for the logging through sockets
+# Create the UI through there and now you have you have a pretty UI. CHECKPOINT 1
+# Now that you have better visualization write out the chat interface and allow it to be controlled through the UI as well as the main program
+# Now decide how the information flows through the agent you may need to do some trial and error to get this part right
+# Implement multiturn conversation now and then CHECKPOINT 2 is now done with multiturn conversations
