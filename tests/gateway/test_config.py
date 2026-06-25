@@ -622,3 +622,88 @@ class TestHomeChannelEnvOverrides:
             home = config.platforms[platform].home_channel
             assert home is not None, f"{platform.value}: home_channel should not be None"
             assert (home.chat_id, home.name) == expected, platform.value
+
+
+class TestApiServerYamlBridge:
+    """Top-level api_server: section in config.yaml bridges extra keys correctly."""
+
+    def test_bridges_enabled_and_extra_keys(self, tmp_path, monkeypatch):
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        config_path = hermes_home / "config.yaml"
+        config_path.write_text(
+            "api_server:\n"
+            "  enabled: true\n"
+            "  host: \"0.0.0.0\"\n"
+            "  port: 9999\n"
+            "  key: \"mysecret\"\n"
+            "  allow_model_override: true\n"
+            "  max_concurrent: 5\n"
+            "  model_name: \"test-model\"\n",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        # Ensure env vars don't interfere
+        for ev in ("API_SERVER_HOST", "API_SERVER_PORT", "API_SERVER_KEY", "API_SERVER_MODEL_NAME"):
+            monkeypatch.delenv(ev, raising=False)
+
+        config = load_gateway_config()
+
+        assert Platform.API_SERVER in config.platforms
+        cfg = config.platforms[Platform.API_SERVER]
+        assert cfg.enabled is True
+        assert cfg.extra.get("host") == "0.0.0.0"
+        assert cfg.extra.get("port") == 9999
+        assert cfg.extra.get("key") == "mysecret"
+        assert cfg.extra.get("allow_model_override") is True
+        assert cfg.extra.get("max_concurrent") == 5
+        assert cfg.extra.get("model_name") == "test-model"
+
+    def test_env_vars_take_precedence_over_yaml(self, tmp_path, monkeypatch):
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        config_path = hermes_home / "config.yaml"
+        config_path.write_text(
+            "api_server:\n"
+            "  enabled: true\n"
+            "  host: \"127.0.0.1\"\n"
+            "  port: 8642\n"
+            "  key: \"yaml-key\"\n",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("API_SERVER_HOST", "192.168.1.1")
+        monkeypatch.setenv("API_SERVER_PORT", "7777")
+        monkeypatch.setenv("API_SERVER_KEY", "env-key")
+
+        config = load_gateway_config()
+
+        cfg = config.platforms[Platform.API_SERVER]
+        # Env vars take precedence — YAML values should NOT override them
+        assert cfg.extra.get("host") != "127.0.0.1"
+        assert cfg.extra.get("port") != 8642
+        assert cfg.extra.get("key") != "yaml-key"
+
+    def test_enabled_only_no_extra_keys(self, tmp_path, monkeypatch):
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        config_path = hermes_home / "config.yaml"
+        config_path.write_text(
+            "api_server:\n"
+            "  enabled: true\n",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        for ev in ("API_SERVER_HOST", "API_SERVER_PORT", "API_SERVER_KEY"):
+            monkeypatch.delenv(ev, raising=False)
+
+        config = load_gateway_config()
+
+        assert Platform.API_SERVER in config.platforms
+        assert config.platforms[Platform.API_SERVER].enabled is True
+        # No extra keys bridged for enabled-only config
+        assert config.platforms[Platform.API_SERVER].extra.get("host") is None
+        assert config.platforms[Platform.API_SERVER].extra.get("key") is None
